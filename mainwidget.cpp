@@ -8,14 +8,9 @@
 
 bool MainWidget::playing = false; 
 
-MainWidget::MainWidget(QWidget *parent): QWidget(parent), m_parent(dynamic_cast<MainWindow *>(parent))
+MainWidget::MainWidget(QWidget *parent): QWidget(parent), m_current(0),
+m_parent(dynamic_cast<MainWindow *>(parent))
 {
-	//setting up media objects
-	SetUpPlayer();
-	//meta handler to process media data
-	m_metaHandler = new Phonon::MediaObject(this);
-	connect(m_metaHandler, SIGNAL(stateChanged(Phonon::State,Phonon::State)), this, SLOT(NewMetaData(Phonon::State,Phonon::State)));
-
 	//intialization stuff
 	SetUpPlaylistView();
 
@@ -30,6 +25,12 @@ MainWidget::MainWidget(QWidget *parent): QWidget(parent), m_parent(dynamic_cast<
 	mainLayout->addLayout(SetUpLibraryBrowser(), -50);
 	mainLayout->addLayout(playlistLayout);
 	setLayout(mainLayout);
+
+	//setting up media objects
+	SetUpPlayer();
+	//meta handler to process media data
+	m_metaHandler = new Phonon::MediaObject(this);
+	connect(m_metaHandler, SIGNAL(stateChanged(Phonon::State,Phonon::State)), this, SLOT(NewMetaData(Phonon::State,Phonon::State)));
 }
 
 void MainWidget::AddFileSlot()
@@ -62,13 +63,13 @@ void MainWidget::AddFileSlot()
 
 void MainWidget::SkipBackSlot()
 {
-	if(m_current != m_playlist.begin())
+	if(m_current != 0)
 	{
 		--m_current;
 		if(playing)
 		{
-			m_musicPlayer->setCurrentSource(m_current->media());
-			m_infoWidget->SetCurrentSong(*m_current);
+			m_musicPlayer->setCurrentSource(m_playlist[m_current].media());
+			m_infoWidget->SetCurrentSong(m_playlist[m_current]);
 			m_musicPlayer->play();
 		}
 	}
@@ -88,13 +89,13 @@ void MainWidget::PlayPauseSlot()
 		playing = false;
 		m_parent->ChangeToPlay();
 	}
-	else
+	else if(!m_playlist.isEmpty())
 	{
 		playing = true;
 		if(m_musicPlayer->state() != Phonon::PausedState)
 		{
-			m_infoWidget->SetCurrentSong(*m_current);
-			m_musicPlayer->setCurrentSource(m_current->media());
+			m_infoWidget->SetCurrentSong(m_playlist[m_current]);
+			m_musicPlayer->setCurrentSource(m_playlist[m_current].media());
 		}
 		m_parent->ChangeToPause();
 		m_musicPlayer->play();
@@ -118,13 +119,14 @@ void MainWidget::StopSlot()
 
 void MainWidget::SkipForwardSlot()
 {
-	if(m_current + 1 != m_playlist.end())
+	if(m_current != m_playlist.count() - 1)
 	{
 		++m_current;
 		if(playing)
 		{
-			m_musicPlayer->setCurrentSource(m_current->media());
-			m_infoWidget->SetCurrentSong(*m_current);
+			m_musicPlayer->stop();
+			m_musicPlayer->setCurrentSource(m_playlist[m_current].media());
+			m_infoWidget->SetCurrentSong(m_playlist[m_current]);
 			m_musicPlayer->play();
 		}
 	}
@@ -164,7 +166,8 @@ void MainWidget::NewMetaData(Phonon::State newState, Phonon::State)
 
 	//now we can deal with the meta data without worries
 	QMap<QString, QString> metadata = m_metaHandler->metaData();
-	Song tmp(m_metaHandler->currentSource(),
+	Song tmp(QString("%1").arg(m_playlist.count() + 1, 2),
+			m_metaHandler->currentSource(),
 			 metadata.value(tr("TITLE")),
 			 metadata.value(tr("ARTIST")),
 			 metadata.value(tr("ALBUM")),
@@ -177,7 +180,7 @@ void MainWidget::NewMetaData(Phonon::State newState, Phonon::State)
 		
 		if(!playing)
 		{
-			m_current = m_playlist.begin();
+			m_current = 0;
 		}
 	}
 	else
@@ -208,33 +211,47 @@ void MainWidget::AddFileBttn()
 	}
 }
 
-void MainWidget::ClearBttn()
-{
-	if(!m_playlist.isEmpty())
-	{
-		m_playlist.clear();
-		m_playlistView->reset();
-		StopSlot();
-	}
-}
-
 void MainWidget::EnqueNext()
 {
-	if(m_playlist.end() != ++m_current)
+	if(m_current != m_playlist.count() - 1)
 	{
-		m_musicPlayer->enqueue( m_current->media());
-		m_infoWidget->SetCurrentSong(*m_current);
+		++m_current;
+		m_musicPlayer->enqueue( m_playlist[m_current].media());
+		m_infoWidget->SetCurrentSong(m_playlist[m_current]);
 	}
 }
 
 void MainWidget::SongFinished()
 {
-	if(m_current == m_playlist.end())
+	if(m_current == m_playlist.count() - 1)
 	{
 		m_parent->ChangeToPlay();
 		playing = false;
-		m_current = m_playlist.begin();
+		m_current = 0;
 	}
+}
+
+void MainWidget::SongDClicked(const QModelIndex &index)
+{
+	m_current = index.row();
+
+	m_musicPlayer->stop();
+	playing = false;
+	PlayPauseSlot();
+}
+
+void MainWidget::LibDClicked(const QModelIndex & index)
+{
+	QString path = m_fileModel->filePath(index);
+
+	if(!m_fileModel->isDir(index))
+		m_metaHandler->setCurrentSource(Phonon::MediaSource(path));
+}
+
+void MainWidget::ClrBttn()
+{
+	m_playlistModel->ClearList();
+	StopSlot();
 }
 
 QLayout * MainWidget::SetUpLibraryBrowser()
@@ -256,13 +273,14 @@ QLayout * MainWidget::SetUpLibraryBrowser()
 	m_fileView->setRootIndex(m_fileModel->index(musicFolder.path()));
 	m_fileView->setSortingEnabled(true);
 	connect(m_fileView, SIGNAL(clicked(QModelIndex)), this, SLOT(FileSelected(QModelIndex)));
+	connect(m_fileView, SIGNAL(doubleClicked(QModelIndex)), this, SLOT(LibDClicked(QModelIndex)));
 
 	//add a button to the layout
 	QPushButton * addBttn = new QPushButton(tr("Add File"), this);
 	connect(addBttn, SIGNAL(clicked()), this, SLOT(AddFileBttn()));
 
 	QPushButton * clearBttn = new QPushButton(tr("Clear Playlist"), this);
-	connect(clearBttn, SIGNAL(clicked()), this, SLOT(ClearBttn()));
+	connect(clearBttn, SIGNAL(clicked()), this, SLOT(ClrBttn()));
 
 	QVBoxLayout * layout = new QVBoxLayout;
 	layout->addWidget(m_fileView);
@@ -292,6 +310,7 @@ void MainWidget::SetUpPlaylistView()
 	m_playlistView->setSelectionMode(QAbstractItemView::SingleSelection);
 	//hide the verticle headers that aren't being used
 	m_playlistView->verticalHeader()->hide();
+	connect(m_playlistView, SIGNAL(doubleClicked(QModelIndex)), this, SLOT(SongDClicked(QModelIndex)));
 }
 
 void MainWidget::SetUpPlayer()
@@ -299,11 +318,14 @@ void MainWidget::SetUpPlayer()
 //	MainWidget * access = dynamic_cast<MainWidget *>(parent());
 	m_musicPlayer = Phonon::createPlayer(Phonon::MusicCategory);
 	m_musicPlayer->setParent(this);
+	m_musicPlayer->setTransitionTime(500);
+	m_musicPlayer->setTickInterval(1000);
 
-	//connect player to actions
-//	connect(m_musicPlayer, SIGNAL(stateChanged(Phonon::State,Phonon::State)),
-//			access, SLOT(NewState(Phonon::State,Phonon::State)));
+	//add a seek slider to songinfowidget
+	m_infoWidget->slider->setMediaObject(m_musicPlayer);
 
 	connect(m_musicPlayer, SIGNAL(aboutToFinish()), this, SLOT(EnqueNext()));
 	connect(m_musicPlayer, SIGNAL(finished()), this, SLOT(SongFinished()));
+	connect(m_musicPlayer, SIGNAL(tick(qint64)), m_infoWidget, SLOT(setCurrentTime(qint64)));
+	connect(m_musicPlayer, SIGNAL(totalTimeChanged(qint64)), m_infoWidget, SLOT(setTotalTime(qint64)));
 }

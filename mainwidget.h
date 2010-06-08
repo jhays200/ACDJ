@@ -40,21 +40,24 @@ private slots:
 	void NewMetaData(Phonon::State newState, Phonon::State);
 	void FileSelected(const QModelIndex & index );
 	void AddFileBttn();
-	void ClearBttn();
 	void EnqueNext();
 	void SongFinished();
+	void SongDClicked(const QModelIndex & index);
+	void LibDClicked(const QModelIndex & index);
+	void ClrBttn();
 
 private:
 	//private methods
 	QLayout * SetUpLibraryBrowser();
 	void SetUpPlaylistView();
 	void SetUpPlayer();
+	void AddSong(const Song & aCopy);
 
 	//private members
 
 	//the playlist of songs
 	QList<Song> m_playlist;
-	QList<Song>::Iterator m_current;
+	int m_current;
 
 	//The file browser for users
 	QTreeView * m_fileView;

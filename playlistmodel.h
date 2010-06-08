@@ -25,6 +25,7 @@ public:
 	virtual void sort(int column, Qt::SortOrder order = Qt::AscendingOrder );
 
 	void AddSong(const Song & aCopy);
+	void ClearList();
 
 private:
 	QStringList m_headers;
@@ -32,8 +33,6 @@ private:
 	
 	int m_columnSorted;
 	int m_as_or_de;
-
-	typedef bool(*COMPARE)(const Song &s1, const Song &s2);
 };
 
 #endif

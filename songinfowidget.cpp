@@ -4,23 +4,20 @@
 
 SongInfoWidget::SongInfoWidget(QWidget *parent): QWidget(parent)
 {
-	//setup timmer
-	//SetUpTimer();
-
 	//setup labels
-	m_title = new QLabel(tr("Medicate"), this);
-	m_artist = new QLabel(tr("Breaking Benjamin"), this);
-	m_album = new QLabel(tr("Saturate"), this);;
-	//m_time = new QLabel(this);
-
-	/*QPushButton * bttnStart = new QPushButton(tr("Start Timer"), this);
-	connect(bttnStart, SIGNAL(clicked()), this, SLOT(startTime()));*/
+	m_title = new QLabel(this);
+	m_artist = new QLabel(this);
+	m_album = new QLabel(this);
+	slider = new Phonon::SeekSlider(this);
+	slider->setIconVisible(false);
+	m_time = new QLabel(this);
 
 	QVBoxLayout * layout = new QVBoxLayout(this);
 	layout->addWidget(m_title, 0, Qt::AlignHCenter);
 	layout->addWidget(m_artist, 0, Qt::AlignHCenter);
 	layout->addWidget(m_album, 0, Qt::AlignHCenter);
-	//layout->addWidget(m_time);
+	layout->addWidget(slider);
+	layout->addWidget(m_time);
 }
 
 void SongInfoWidget::SetCurrentSong(const Song & current)
@@ -30,41 +27,31 @@ void SongInfoWidget::SetCurrentSong(const Song & current)
 	m_album->setText(current.album());
 }
 
-//void SongInfoWidget::stopTime()
-//{
-//	m_timer->stop();
-//}
-//
-//void SongInfoWidget::startTime()
-//{
-//	m_timer->start();
-//}
-//
-//void SongInfoWidget::incTime()
-//{
-//	QString time("%1:%2 / %3:%4");
-//
-//	if(++m_timePassedSec > m_timeEnd)
-//	{
-//		m_timePassedSec = 0;
-//		m_timer->stop();
-//	}
-//
-//	int secCurrent = m_timePassedSec % 60;
-//	int minCurrent = m_timePassedSec / 60;
-//	static int secEnd = m_timeEnd % 60;
-//	static int minEnd = m_timeEnd / 60;
-//
-//	time = time.arg(minCurrent).arg(secCurrent, 2, 10, QChar('0')).arg(minEnd).arg(secEnd, 2);
-//
-//	m_time->setText(time);
-//}
-//
-//void SongInfoWidget::SetUpTimer()
-//{
-//	m_timer = new QTimer(this);
-//	m_timer->setSingleShot(false);
-//	m_timer->setInterval(1000);
-//
-//	connect(m_timer, SIGNAL(timeout()), this, SLOT(incTime()) );
-//}
+void SongInfoWidget::setTotalTime(qint64 total)
+{
+	m_timeEndSec = total % 1000;
+	m_timeEndMin = m_timeEndSec / 60;
+	m_timeEndSec %= 60;
+
+	m_timePassedSec = 0;
+	m_timePassedMin = 0;
+	updateTime();
+}
+
+void SongInfoWidget::setCurrentTime(qint64 current)
+{
+	++m_timePassedSec;
+
+	m_timePassedMin = m_timePassedSec / 60;
+	m_timePassedSec %= 60;
+
+	updateTime();
+}
+
+void SongInfoWidget::updateTime()
+{
+	QString text = tr("%1:%2 / %3:%4")
+			.arg(m_timePassedMin).arg(m_timePassedSec, 2, 10, QChar('0'))
+			.arg(m_timeEndMin).arg(m_timeEndSec, 2, 10, QChar('0'));
+	m_time->setText(text);
+}

@@ -6,6 +6,7 @@ CONFIG += qt debug
 DESTDIR = Debug
 MOC_DIR = Debug
 OBJECTS_DIR = Debug
+UI_DIR = Debug
 
 SOURCES += main.cpp \
     songinfowidget.cpp \
